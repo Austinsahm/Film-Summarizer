@@ -1,21 +1,36 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import authConfig from "@/auth.config";
+import NextAuth from "next-auth";
+import { privateRoutes } from "./route";
 
-const protectedRoutes = ["/protected"];
+const { auth } = NextAuth(authConfig);
+export default auth(async (req) => {
+  console.log("Middleware called", req.nextUrl.pathname);
+  console.log(req.auth);
+  const isLoggedIn = !!req.auth;
+  const { nextUrl } = req;
+  const url = "http://localhost:3000";
 
-export default async function middleware(request: NextRequest) {
-  const session = await auth();
+  const isPrivateRoute = privateRoutes.includes(nextUrl.pathname);
+  const isAuthRoute = nextUrl.pathname.includes("/auth");
+  const isApiRoute = nextUrl.pathname.includes("/api");
 
-  const { pathname } = request.nextUrl;
-
-  const isProtected = protectedRoutes.some((route) => {
-    pathname.startsWith(route);
-  });
-
-  if (isProtected && !session) {
-    return NextResponse.redirect(new URL("/api/auth/signin", request.url));
+  if (isApiRoute) {
+    return;
   }
 
-  return NextResponse.next();
-}
+  if (isLoggedIn && isAuthRoute) {
+    return Response.redirect(`${url}/dashboard`);
+  }
+
+  if (isAuthRoute && !isLoggedIn) {
+    return;
+  }
+
+  if (!isLoggedIn && isPrivateRoute) {
+    return Response.redirect(`${url}/auth/login`);
+  }
+});
+
+export const config = {
+  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+};
